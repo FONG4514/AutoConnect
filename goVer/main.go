@@ -1,13 +1,15 @@
 package main
 
 import (
+	"errors"
 	"flag"
-	"github.com/valyala/fasthttp"
 	"log"
 	"math/rand"
-	"os/exec"
+	"net"
 	"strconv"
 	"time"
+
+	"github.com/valyala/fasthttp"
 )
 
 func main() {
@@ -43,13 +45,14 @@ func main() {
 
 // 检查网络是否连接
 func isConnected() bool {
-	// 使用ping命令检查网络连接状态
-	cmd := exec.Command("ping", "-n", "1", "-w", "1000", "81.71.3.20")
-	err := cmd.Run()
+	// 使用net包中的Dial函数尝试建立TCP连接
+	conn, err := net.DialTimeout("tcp", "8.8.8.8:53", 1*time.Second)
 	if err != nil {
-		log.Println("网络断开")
+		log.Println("网络断开:", err)
 		return false
 	}
+	defer conn.Close()
+
 	return true
 }
 
@@ -59,6 +62,13 @@ func loginToNetwork(account, password, networkType string) string {
 	rand.Seed(time.Now().UnixNano())
 	randomInt := rand.Intn(8889) + 1111 // 生成1111到9999之间的随机数
 
+	// 获取JXUST-WLAN的IP地址
+	wlanIP, err := getJXUSTWLANIP()
+	if err != nil {
+		log.Printf("获取JXUST-WLAN IP失败: %s\n", err)
+		return ""
+	}
+
 	// 定义请求参数
 	args := fasthttp.AcquireArgs()
 	defer fasthttp.ReleaseArgs(args)
@@ -66,7 +76,7 @@ func loginToNetwork(account, password, networkType string) string {
 	args.Add("login_method", "1")
 	args.Add("user_account", account+"@"+networkType)
 	args.Add("user_password", password)
-	args.Add("wlan_user_ip", "10.21.203.8")
+	args.Add("wlan_user_ip", wlanIP)
 	args.Add("wlan_user_ipv6", "")
 	args.Add("wlan_user_mac", "000000000000")
 	args.Add("wlan_ac_ip", "")
@@ -89,11 +99,49 @@ func loginToNetwork(account, password, networkType string) string {
 	defer fasthttp.ReleaseResponse(resp)
 
 	// 发送HTTP GET请求
-	err := fasthttp.Do(req, resp)
+	err = fasthttp.Do(req, resp)
 	if err != nil {
 		log.Printf("请求失败: %s\n", err)
 		return ""
 	}
 
 	return string(resp.Body())
+}
+
+// 获取JXUST-WLAN的IP地址
+func getJXUSTWLANIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue // 接口关闭
+		}
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue // 忽略loopback接口
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return "", err
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue // 不是IPv4地址
+			}
+			return ip.String(), nil
+		}
+	}
+	return "", errors.New("未找到JXUST-WLAN IP地址")
 }
