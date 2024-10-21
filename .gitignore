@@ -318,6 +318,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-auto-connect-linux-arm64
-auto-connect-macos-arm64
 run.bash
+.DS_Store
