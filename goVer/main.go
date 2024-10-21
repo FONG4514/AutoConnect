@@ -22,26 +22,28 @@ func main() {
 	arg5 := flag.String("l", "", "日志文件路径")
 	flag.Parse()
 
-	if *arg5 == "" {
-		log.Fatalf("\nUsage: ./app -a <username> -p <password> [-t <telecom/移动/联通>] [-i <interval_ms>] [-l <log_file_path>]")
-	}
-
-	// 创建日志目录（如果不存在）
-	logDir := filepath.Dir(*arg5)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		log.Fatalf("无法创建日志目录: %v", err)
-	}
-
-	// 配置日志文件
-	logFile, err := os.OpenFile(*arg5, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("无法打开日志文件: %v", err)
-	}
-	defer logFile.Close()
-	log.SetOutput(logFile)
-
 	if *arg1 == "" || *arg2 == "" {
 		log.Fatalf("\nUsage: ./app -a <username> -p <password> [-t <telecom/移动/联通>] [-i <interval_ms>] [-l <log_file_path>]")
+	}
+
+	// 如果提供了日志文件路径，则配置日志输出到文件
+	if *arg5 != "" {
+		// 创建日志目录（如果不存在）
+		logDir := filepath.Dir(*arg5)
+		if err := os.MkdirAll(logDir, 0755); err != nil {
+			log.Fatalf("无法创建日志目录: %v", err)
+		}
+
+		// 配置日志文件
+		logFile, err := os.OpenFile(*arg5, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("无法打开日志文件: %v", err)
+		}
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	} else {
+		// 未提供日志文件路径，日志输出到标准输出
+		log.SetOutput(os.Stdout)
 	}
 
 	// 将间隔时间转换为 Duration 类型
